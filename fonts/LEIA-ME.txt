@@ -1,0 +1,14 @@
+Fontes self-hosted — AGENTS.md, regra-zero: nenhuma chamada a fonts.googleapis.com.
+
+barlow-latin-400.woff2      Barlow Regular, subset latin (U+0000-00FF)
+zillaslab-latin-700.woff2   Zilla Slab Bold, subset latin (U+0000-00FF)
+
+Ambas sob SIL Open Font License 1.1 — https://openfontlicense.org
+Barlow: Jeremy Tribby. Zilla Slab: Typotheque para a Mozilla.
+
+Sao DOIS arquivos porque a meta de desempenho do AGENTS.md e dois. Peso em
+negrito no corpo e peso 600 na interface sao sintetizados pelo navegador. Se o
+desenho exigir um Barlow 600 real, isso custa um terceiro arquivo (~22 KB) e e
+decisao do Rivas, nao do agente.
+
+O subset latin cobre todo o portugues (acentos estao em U+00C0-U+00FF).

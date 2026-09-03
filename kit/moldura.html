@@ -1,0 +1,467 @@
+<!doctype html>
+<!--
+  Moldura do Apoiador — Anyara Santos 15199 (MDB)
+  Regra-zero: zero dependência externa. Sem CDN, sem fonte remota, sem API.
+  Nenhuma imagem sai do aparelho: todo o processamento é em canvas local.
+  Propriedade: Riva's Alexandre
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<title>Moldura do Apoiador — Anyara 15199</title>
+<style>
+  /* ---------------------------------------------------------------
+     TOKENS DA PEÇA — trocar os dois hex abaixo pelos valores do
+     Manual de Identidade Visual do MDB. Valores atuais: PROVISÓRIOS.
+     --------------------------------------------------------------- */
+  :root{
+    /* Valores do Manual de Identidade Visual MDB 2018 v3, pagina 06, com
+       CMYK/RGB/Pantone. [medido] — nao amostrados de imagem comprimida.
+       O verde da faixa e o 347 C ESCURECIDO: sobre o 347 C puro (#00A550) o
+       branco da 3,23:1 e o amarelo da 2,76:1, os dois reprovam. Escurecido,
+       branco da 6,66:1 e o amarelo 5,69:1. Os provisorios anteriores davam
+       6,60:1 e 3,63:1 — o numero passava so por ser grande. */
+    --mdb-verde:   #006B34;   /* derivado do Pantone 347 C, para texto em cima */
+    --mdb-amarelo: #FFF200;   /* Pantone 108 C */
+
+    /* chrome da ferramenta (não entra na imagem exportada) */
+    --grafite: #232322;
+    --papel:   #F8F3EF;
+    --linha:   #3a3a38;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--grafite);
+    color:var(--papel);
+    font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding:16px 16px 40px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:560px;margin:0 auto}
+
+  h1{
+    font-size:19px;font-weight:700;margin:0 0 2px;letter-spacing:-.01em;
+  }
+  .sub{color:#9d9d99;font-size:13.5px;margin:0 0 18px}
+
+  /* palco */
+  .stage{
+    background:#111110;border:1px solid var(--linha);border-radius:10px;
+    padding:12px;display:flex;justify-content:center;align-items:center;
+    min-height:300px;position:relative;overflow:hidden;
+  }
+  canvas#preview{
+    max-width:100%;height:auto;display:block;touch-action:none;cursor:grab;
+    border-radius:4px;
+  }
+  canvas#preview:active{cursor:grabbing}
+  .vazio{
+    color:#6f6f6b;font-size:14px;text-align:center;padding:56px 20px;max-width:280px;
+  }
+
+  /* controles */
+  .linha-btn{display:flex;gap:8px;margin:14px 0 0;flex-wrap:wrap}
+  button,label.arq{
+    font:inherit;font-size:14.5px;border-radius:7px;border:1px solid var(--linha);
+    background:#1b1b1a;color:var(--papel);padding:11px 14px;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button:focus-visible,label.arq:focus-within,input:focus-visible{
+    outline:2px solid var(--mdb-amarelo);outline-offset:2px;
+  }
+  button[aria-pressed="true"]{
+    background:var(--mdb-verde);border-color:var(--mdb-verde);font-weight:600;
+  }
+  button:disabled{opacity:.4;cursor:default}
+  label.arq{display:inline-block}
+  label.arq input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .principal{
+    background:var(--mdb-verde);border-color:var(--mdb-verde);
+    font-weight:700;flex:1;min-width:150px;
+  }
+  .campo{margin-top:14px}
+  .campo span{display:block;font-size:12.5px;color:#9d9d99;margin-bottom:6px}
+  input[type=range]{width:100%;accent-color:var(--mdb-amarelo)}
+
+  .aviso{
+    margin-top:12px;font-size:13px;line-height:1.5;color:#e8c46a;
+    border-left:3px solid var(--mdb-amarelo);padding:2px 0 2px 10px;display:none;
+  }
+  .aviso.on{display:block}
+
+  footer{
+    margin-top:26px;padding-top:14px;border-top:1px solid var(--linha);
+    font-size:12px;color:#6f6f6b;
+  }
+  @media (prefers-reduced-motion:no-preference){
+    button{transition:background .12s ease}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Moldura do Apoiador</h1>
+  <p class="sub">Coloque sua foto na moldura da campanha e baixe pronta para postar. A foto não sai do seu celular.</p>
+
+  <div class="stage" id="stage">
+    <p class="vazio" id="vazio">Escolha uma foto para começar. Depois arraste para enquadrar.</p>
+    <canvas id="preview" width="520" height="520" hidden aria-label="Prévia da moldura"></canvas>
+  </div>
+
+  <div class="linha-btn">
+    <label class="arq">Escolher foto
+      <input type="file" id="arquivo" accept="image/*">
+    </label>
+    <button type="button" id="fmt-feed"   aria-pressed="true">Feed</button>
+    <button type="button" id="fmt-story"  aria-pressed="false">Story</button>
+    <button type="button" id="fmt-perfil" aria-pressed="false">Perfil</button>
+  </div>
+
+  <div class="campo">
+    <span>Aproximar</span>
+    <input type="range" id="zoom" min="100" max="300" value="100" step="1" aria-label="Aproximar a foto">
+  </div>
+
+  <div class="linha-btn">
+    <button type="button" class="principal" id="baixar" disabled>Baixar imagem</button>
+    <button type="button" id="centralizar" disabled>Centralizar</button>
+  </div>
+
+  <p class="aviso" id="aviso" role="status"></p>
+
+  <footer>
+    Anyara Santos · Deputada Estadual · 15199 · MDB<br>
+    Ferramenta desenvolvida por Riva's Alexandre.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var FORMATOS = {
+    feed:   {w:1080, h:1080, rotulo:"feed"},
+    story:  {w:1080, h:1920, rotulo:"story"},
+    perfil: {w:1080, h:1080, rotulo:"perfil"}
+  };
+
+  var estado = {
+    img: null,      // ImageBitmap ou HTMLImageElement
+    fmt: "feed",
+    zoom: 1,        // multiplicador sobre o "cover"
+    panX: 0,        // normalizado pela largura de saída
+    panY: 0
+  };
+
+  var preview   = document.getElementById("preview");
+  var vazio     = document.getElementById("vazio");
+  var arquivo   = document.getElementById("arquivo");
+  var zoom      = document.getElementById("zoom");
+  var btnBaixar = document.getElementById("baixar");
+  var btnCentro = document.getElementById("centralizar");
+  var aviso     = document.getElementById("aviso");
+  var botoesFmt = {
+    feed:   document.getElementById("fmt-feed"),
+    story:  document.getElementById("fmt-story"),
+    perfil: document.getElementById("fmt-perfil")
+  };
+
+  function token(nome){
+    return getComputedStyle(document.documentElement).getPropertyValue(nome).trim();
+  }
+  function avisar(txt){
+    aviso.textContent = txt || "";
+    aviso.classList.toggle("on", !!txt);
+  }
+
+  /* ---------- leitura da foto (EXIF + HEIC) ---------- */
+
+  function carregar(file){
+    avisar("");
+    var nome = (file.name || "").toLowerCase();
+
+    // createImageBitmap com from-image resolve a rotação EXIF do celular
+    if (window.createImageBitmap) {
+      createImageBitmap(file, {imageOrientation:"from-image"})
+        .then(aplicar)
+        .catch(function(){ viaTag(file, nome); });
+    } else {
+      viaTag(file, nome);
+    }
+  }
+
+  function viaTag(file, nome){
+    var url = URL.createObjectURL(file);
+    var im = new Image();
+    im.onload = function(){ URL.revokeObjectURL(url); aplicar(im); };
+    im.onerror = function(){
+      URL.revokeObjectURL(url);
+      if (/\.hei[cf]$/.test(nome)) {
+        avisar("Este navegador não abre fotos HEIC do iPhone. No iPhone: Ajustes › Câmera › Formatos › Mais Compatível, ou envie a foto pelo WhatsApp para você mesmo e use a cópia.");
+      } else {
+        avisar("Não foi possível abrir este arquivo. Tente outra foto em JPG ou PNG.");
+      }
+    };
+    im.src = url;
+  }
+
+  function aplicar(img){
+    estado.img = img;
+    estado.zoom = 1; estado.panX = 0; estado.panY = 0;
+    zoom.value = 100;
+    preview.hidden = false;
+    vazio.style.display = "none";
+    btnBaixar.disabled = false;
+    btnCentro.disabled = false;
+    redimensionarPreview();
+    desenhar();
+  }
+
+  /* ---------- desenho ---------- */
+
+  function larguraImg(img){ return img.width  || img.naturalWidth;  }
+  function alturaImg(img){  return img.height || img.naturalHeight; }
+
+  function desenharFoto(ctx, W, H){
+    var img = estado.img;
+    var iw = larguraImg(img), ih = alturaImg(img);
+    var base = Math.max(W/iw, H/ih);
+    var s = base * estado.zoom;
+    var dw = iw*s, dh = ih*s;
+    var dx = (W-dw)/2 + estado.panX*W;
+    var dy = (H-dh)/2 + estado.panY*W;
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  // texto "condensado" sem fonte externa: comprime o eixo X
+  function textoCondensado(ctx, txt, x, y, px, cor, aperto){
+    ctx.save();
+    ctx.fillStyle = cor;
+    ctx.font = "900 " + px + "px system-ui,-apple-system,'Segoe UI',Roboto,'Arial Black',sans-serif";
+    ctx.textBaseline = "alphabetic";
+    ctx.translate(x, y);
+    ctx.scale(aperto || 0.86, 1);
+    ctx.fillText(txt, 0, 0);
+    var w = ctx.measureText(txt).width * (aperto || 0.86);
+    ctx.restore();
+    return w;
+  }
+  function larguraCondensada(ctx, txt, px, aperto){
+    ctx.save();
+    ctx.font = "900 " + px + "px system-ui,-apple-system,'Segoe UI',Roboto,'Arial Black',sans-serif";
+    var w = ctx.measureText(txt).width * (aperto || 0.86);
+    ctx.restore();
+    return w;
+  }
+
+  function faixa(ctx, W, H, topoFaixa, altura){
+    var verde = token("--mdb-verde"), amarelo = token("--mdb-amarelo");
+    // filete amarelo
+    ctx.fillStyle = amarelo;
+    ctx.fillRect(0, topoFaixa - Math.round(altura*0.05), W, Math.round(altura*0.05));
+    // faixa verde
+    ctx.fillStyle = verde;
+    ctx.fillRect(0, topoFaixa, W, altura);
+
+    var meio = topoFaixa + altura/2;
+    var pxNome = Math.round(altura*0.42);
+    var pxNum  = Math.round(altura*0.60);
+    var margem = Math.round(W*0.055);
+
+    var wNum = larguraCondensada(ctx, "15199", pxNum, 0.82);
+    textoCondensado(ctx, "15199", W - margem - wNum, meio + pxNum*0.36, pxNum, amarelo, 0.82);
+
+    ctx.save();
+    ctx.letterSpacing = "2px";
+    textoCondensado(ctx, "ANYARA", margem, meio + pxNome*0.36, pxNome, "#FFFFFF", 0.86);
+    ctx.restore();
+
+    // assinatura do partido, discreta, sob o nome
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.font = "700 " + Math.round(altura*0.15) + "px system-ui,-apple-system,sans-serif";
+    ctx.letterSpacing = "3px";
+    ctx.fillText("DEPUTADA ESTADUAL · MDB", margem, meio + pxNome*0.36 + Math.round(altura*0.26));
+    ctx.restore();
+  }
+
+  function borda(ctx, W, H, esp){
+    ctx.strokeStyle = token("--mdb-verde");
+    ctx.lineWidth = esp;
+    ctx.strokeRect(esp/2, esp/2, W-esp, H-esp);
+  }
+
+  function render(ctx, W, H, fmt){
+    var verde = token("--mdb-verde"), amarelo = token("--mdb-amarelo");
+    ctx.clearRect(0,0,W,H);
+
+    if (fmt === "perfil") {
+      var r = W/2;
+      var aro = Math.round(W*0.055);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(r, r, r - aro, 0, Math.PI*2);
+      ctx.clip();
+      desenharFoto(ctx, W, H);
+      ctx.restore();
+
+      // aro verde + filete amarelo interno
+      ctx.strokeStyle = verde; ctx.lineWidth = aro;
+      ctx.beginPath(); ctx.arc(r, r, r - aro/2, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = amarelo; ctx.lineWidth = Math.round(aro*0.22);
+      ctx.beginPath(); ctx.arc(r, r, r - aro - Math.round(aro*0.11), 0, Math.PI*2); ctx.stroke();
+
+      // pílula inferior com nome e número
+      var alt = Math.round(W*0.115);
+      var pad = Math.round(W*0.05);
+      var pxT = Math.round(alt*0.52);
+      var txt = "ANYARA 15199";
+      var wT  = larguraCondensada(ctx, txt, pxT, 0.86);
+      var lar = wT + pad*2;
+      var x0  = (W-lar)/2, y0 = H - aro - alt - Math.round(W*0.045);
+      ctx.fillStyle = verde;
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x0, y0, lar, alt, alt/2); ctx.fill(); }
+      else ctx.fillRect(x0, y0, lar, alt);
+      textoCondensado(ctx, "ANYARA ", x0+pad, y0+alt/2+pxT*0.36, pxT, "#FFFFFF", 0.86);
+      var wA = larguraCondensada(ctx, "ANYARA ", pxT, 0.86);
+      textoCondensado(ctx, "15199", x0+pad+wA, y0+alt/2+pxT*0.36, pxT, amarelo, 0.86);
+      return;
+    }
+
+    desenharFoto(ctx, W, H);
+
+    var altFaixa, topo;
+    if (fmt === "story") {
+      altFaixa = Math.round(H*0.085);
+      topo = H - altFaixa - Math.round(H*0.14); // área livre da barra do Instagram
+    } else {
+      altFaixa = Math.round(H*0.155);
+      topo = H - altFaixa;
+    }
+    faixa(ctx, W, H, topo, altFaixa);
+    borda(ctx, W, H, Math.round(W*0.009));
+  }
+
+  /* ---------- preview ---------- */
+
+  function redimensionarPreview(){
+    var f = FORMATOS[estado.fmt];
+    var maxW = Math.min(document.getElementById("stage").clientWidth - 24, 520);
+    var maxH = Math.round(window.innerHeight * 0.52);
+    var esc = Math.min(maxW / f.w, maxH / f.h);
+    preview.width  = Math.round(f.w * esc);
+    preview.height = Math.round(f.h * esc);
+  }
+
+  function desenhar(){
+    if (!estado.img) return;
+    var f = FORMATOS[estado.fmt];
+    var ctx = preview.getContext("2d");
+    var esc = preview.width / f.w;
+    ctx.save();
+    ctx.scale(esc, esc);
+    render(ctx, f.w, f.h, estado.fmt);
+    ctx.restore();
+  }
+
+  /* ---------- interação ---------- */
+
+  var arrastando = false, ultimoX = 0, ultimoY = 0, distPinca = 0;
+
+  preview.addEventListener("pointerdown", function(e){
+    arrastando = true; ultimoX = e.clientX; ultimoY = e.clientY;
+    preview.setPointerCapture(e.pointerId);
+  });
+  preview.addEventListener("pointermove", function(e){
+    if (!arrastando) return;
+    estado.panX += (e.clientX - ultimoX) / preview.width;
+    estado.panY += (e.clientY - ultimoY) / preview.width;
+    ultimoX = e.clientX; ultimoY = e.clientY;
+    desenhar();
+  });
+  ["pointerup","pointercancel","pointerleave"].forEach(function(ev){
+    preview.addEventListener(ev, function(){ arrastando = false; });
+  });
+
+  // pinça (dois dedos)
+  preview.addEventListener("touchmove", function(e){
+    if (e.touches.length !== 2) return;
+    e.preventDefault();
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    var d = Math.hypot(dx, dy);
+    if (distPinca) {
+      estado.zoom = Math.min(3, Math.max(1, estado.zoom * (d/distPinca)));
+      zoom.value = Math.round(estado.zoom*100);
+      desenhar();
+    }
+    distPinca = d;
+  }, {passive:false});
+  preview.addEventListener("touchend", function(){ distPinca = 0; });
+
+  zoom.addEventListener("input", function(){
+    estado.zoom = parseInt(zoom.value,10)/100;
+    desenhar();
+  });
+
+  btnCentro.addEventListener("click", function(){
+    estado.panX = 0; estado.panY = 0; estado.zoom = 1; zoom.value = 100;
+    desenhar();
+  });
+
+  Object.keys(botoesFmt).forEach(function(k){
+    botoesFmt[k].addEventListener("click", function(){
+      estado.fmt = k;
+      Object.keys(botoesFmt).forEach(function(j){
+        botoesFmt[j].setAttribute("aria-pressed", String(j===k));
+      });
+      redimensionarPreview();
+      desenhar();
+    });
+  });
+
+  arquivo.addEventListener("change", function(e){
+    var f = e.target.files && e.target.files[0];
+    if (f) carregar(f);
+  });
+
+  window.addEventListener("resize", function(){
+    if (!estado.img) return;
+    redimensionarPreview();
+    desenhar();
+  });
+
+  /* ---------- exportação em 1080 ---------- */
+
+  btnBaixar.addEventListener("click", function(){
+    if (!estado.img) return;
+    var f = FORMATOS[estado.fmt];
+    var out = document.createElement("canvas");
+    out.width = f.w; out.height = f.h;
+    render(out.getContext("2d"), f.w, f.h, estado.fmt);
+
+    var nome = "anyara-15199-" + f.rotulo + ".png";
+    if (out.toBlob) {
+      out.toBlob(function(blob){
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url; a.download = nome;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+        avisar("Imagem salva na galeria ou na pasta de downloads.");
+      }, "image/png");
+    } else {
+      var a2 = document.createElement("a");
+      a2.href = out.toDataURL("image/png"); a2.download = nome; a2.click();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
